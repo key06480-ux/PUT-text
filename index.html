@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PVT精神警觉任务</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:Arial,sans-serif;
+    text-align:center;
+}
+
+.container{
+    padding-top:60px;
+}
+
+h1{
+    font-size:32px;
+}
+
+#timer{
+    font-size:30px;
+    margin:20px;
+}
+
+#status{
+    font-size:28px;
+    margin:40px;
+}
+
+#stimulusBtn{
+    display:none;
+    font-size:40px;
+    padding:40px 80px;
+    border:none;
+    border-radius:15px;
+}
+
+#startBtn{
+    font-size:24px;
+    padding:15px 30px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>PVT精神警觉任务</h1>
+
+<p>测试时长：5分钟</p>
+
+<p>看到按钮后尽快点击</p>
+
+<p>不要提前点击</p>
+
+<div id="timer">05:00</div>
+
+<div id="status">准备开始</div>
+
+<button id="startBtn">开始测试</button>
+
+<br><br>
+
+<button id="stimulusBtn">点击</button>
+
+</div>
+
+<script>
+
+const TEST_DURATION=300000;
+
+let running=false;
+
+let stimulusVisible=false;
+
+let startTimestamp;
+
+let stimulusTime;
+
+let stimulusTimeout;
+
+let reactionTimes=[];
+
+let totalStimuli=0;
+
+let validResponses=0;
+
+let falseStarts=0;
+
+let misses=0;
+
+let lapses=0;
+
+const startBtn=document.getElementById("startBtn");
+const stimulusBtn=document.getElementById("stimulusBtn");
+const statusDiv=document.getElementById("status");
+const timerDiv=document.getElementById("timer");
+
+startBtn.onclick=function(){
+
+startBtn.style.display="none";
+
+running=true;
+
+startTimestamp=Date.now();
+
+statusDiv.innerHTML="等待...";
+
+startCountdown();
+
+scheduleNextStimulus();
+
+setTimeout(endTest,TEST_DURATION);
+
+};
+
+function startCountdown(){
+
+const interval=setInterval(()=>{
+
+let remain=
+TEST_DURATION-(Date.now()-startTimestamp);
+
+if(remain<=0){
+
+timerDiv.innerHTML="00:00";
+
+clearInterval(interval);
+
+return;
+
+}
+
+let min=Math.floor(remain/60000);
+
+let sec=Math.floor((remain%60000)/1000);
+
+timerDiv.innerHTML=
+String(min).padStart(2,"0")
++":"
++
+String(sec).padStart(2,"0");
+
+},1000);
+
+}
+
+function scheduleNextStimulus(){
+
+if(!running) return;
+
+let interval=
+(Math.random()*8000)+2000;
+
+setTimeout(showStimulus,interval);
+
+}
+
+function showStimulus(){
+
+if(!running) return;
+
+totalStimuli++;
+
+stimulusVisible=true;
+
+stimulusTime=performance.now();
+
+stimulusBtn.style.display="inline-block";
+
+statusDiv.innerHTML="";
+
+stimulusTimeout=setTimeout(()=>{
+
+if(stimulusVisible){
+
+misses++;
+
+stimulusVisible=false;
+
+stimulusBtn.style.display="none";
+
+statusDiv.innerHTML="等待...";
+
+scheduleNextStimulus();
+
+}
+
+},3000);
+
+}
+
+stimulusBtn.onclick=function(){
+
+if(!stimulusVisible) return;
+
+clearTimeout(stimulusTimeout);
+
+let rt=
+performance.now()-stimulusTime;
+
+reactionTimes.push(rt);
+
+validResponses++;
+
+if(rt>=500){
+
+lapses++;
+
+}
+
+stimulusVisible=false;
+
+stimulusBtn.style.display="none";
+
+statusDiv.innerHTML="等待...";
+
+scheduleNextStimulus();
+
+};
+
+document.body.addEventListener("click",function(e){
+
+if(!running) return;
+
+if(e.target.id==="stimulusBtn") return;
+
+if(!stimulusVisible){
+
+falseStarts++;
+
+}
+
+});
+
+function mean(arr){
+
+if(arr.length===0) return 0;
+
+return arr.reduce((a,b)=>a+b,0)/arr.length;
+
+}
+
+function median(arr){
+
+if(arr.length===0) return 0;
+
+let s=[...arr].sort((a,b)=>a-b);
+
+return s[Math.floor(s.length/2)];
+
+}
+
+function fastest10(arr){
+
+if(arr.length===0) return 0;
+
+let s=[...arr].sort((a,b)=>a-b);
+
+let n=Math.max(1,Math.floor(s.length*0.1));
+
+return mean(s.slice(0,n));
+
+}
+
+function slowest10(arr){
+
+if(arr.length===0) return 0;
+
+let s=[...arr].sort((a,b)=>b-a);
+
+let n=Math.max(1,Math.floor(s.length*0.1));
+
+return mean(s.slice(0,n));
+
+}
+
+function endTest(){
+
+running=false;
+
+let med=median(reactionTimes);
+
+let avg=mean(reactionTimes);
+
+let speed=
+med>0
+?
+1000/med
+:
+0;
+
+let accuracy=
+totalStimuli>0
+?
+(validResponses/totalStimuli)*100
+:
+0;
+
+document.body.innerHTML=`
+
+<div style="padding:30px">
+
+<h1>测试完成</h1>
+
+<h2>总刺激数：${totalStimuli}</h2>
+
+<h2>有效反应数：${validResponses}</h2>
+
+<h2>误触次数：${falseStarts}</h2>
+
+<h2>漏反应次数：${misses}</h2>
+
+<h2>正确率：${accuracy.toFixed(1)}%</h2>
+
+<hr>
+
+<h2>中位RT：${med.toFixed(0)} ms</h2>
+
+<h2>平均RT：${avg.toFixed(0)} ms</h2>
+
+<h2>速度(1000/RT)：${speed.toFixed(2)}</h2>
+
+<h2>最快10%RT：${fastest10(reactionTimes).toFixed(0)} ms</h2>
+
+<h2>最慢10%RT：${slowest10(reactionTimes).toFixed(0)} ms</h2>
+
+<h2>Lapse次数(≥500ms)：${lapses}</h2>
+
+<br>
+
+<h2>请截图保存结果</h2>
+
+</div>
+
+`;
+
+}
+
+</script>
+
+</body>
+</html>
